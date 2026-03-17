@@ -1,6 +1,6 @@
 // ============================================================
-// CLÍNICA DENTAL MHG — v5 PREMIUM
-// Custom cursor · Lenis smooth scroll · GSAP animations
+// CLÍNICA DENTAL MHG — v5.2 PREMIUM
+// Custom cursor · GSAP hero · IntersectionObserver reveals
 // Particles · Magnetic buttons · 3D card tilt
 // ============================================================
 (() => {
@@ -8,41 +8,44 @@
   window.addEventListener('DOMContentLoaded', init);
 
   function init() {
-    gsap.registerPlugin(ScrollTrigger);
-    setupPreloader();
+    // — Phase 1: Immediate setups
     setupNav();
     setupMobile();
     setupMobileCTA();
-    setupHero();
     setupParticles();
-    setupReveals();
     setupSmooth();
     setupCursor();
-    setupMagnetic();
-    setup3DTilt();
-  }
 
-  /* ═══ PRELOADER ═══ */
-  function setupPreloader() {
+    // — Phase 2: Preloader → animations
     const pre = document.querySelector('.preloader');
-    if (!pre) return;
-    // Hide after bar animation completes
-    setTimeout(() => {
-      pre.classList.add('hidden');
-      // Start hero animations after preloader
-      document.body.style.overflow = '';
-    }, 2200);
+    const PRELOADER_MS = 2000;
+
+    if (pre) {
+      setTimeout(() => {
+        pre.classList.add('hidden');
+        document.body.style.overflow = '';
+        // After preloader hides, start everything
+        setTimeout(() => {
+          setupHero();
+          setupScrollReveals(); // IntersectionObserver-based
+          setupMagnetic();
+          setup3DTilt();
+        }, 100);
+      }, PRELOADER_MS);
+    } else {
+      setupHero();
+      setupScrollReveals();
+      setupMagnetic();
+      setup3DTilt();
+    }
   }
 
   /* ═══ NAV ═══ */
   function setupNav() {
     const nav = document.getElementById('nav');
     if (!nav) return;
-    let lastScroll = 0;
     window.addEventListener('scroll', () => {
-      const y = window.scrollY;
-      nav.classList.toggle('scrolled', y > 50);
-      lastScroll = y;
+      nav.classList.toggle('scrolled', window.scrollY > 50);
     }, { passive: true });
   }
 
@@ -80,17 +83,31 @@
 
   /* ═══ CUSTOM CURSOR ═══ */
   function setupCursor() {
-    // Only on non-touch devices
     if (window.matchMedia('(pointer:coarse)').matches || window.innerWidth <= 1024) return;
 
     const dot = document.querySelector('.cursor-dot');
     const ring = document.querySelector('.cursor-ring');
+    const trail = document.querySelector('.cursor-trail');
     if (!dot || !ring) return;
 
     let mouseX = -100, mouseY = -100;
     let ringX = -100, ringY = -100;
 
-    // Show cursor elements
+    // Trail particles
+    const trailParticles = [];
+    const TRAIL_COUNT = 8;
+    if (trail) {
+      for (let i = 0; i < TRAIL_COUNT; i++) {
+        const tp = document.createElement('div');
+        tp.className = 'trail-dot';
+        const s = 4 - i * 0.4;
+        tp.style.cssText = `width:${s}px;height:${s}px;opacity:${0.35 - i * 0.04};`;
+        trail.appendChild(tp);
+        trailParticles.push({ el: tp, x: -100, y: -100 });
+      }
+    }
+
+    // Show cursor
     requestAnimationFrame(() => {
       dot.style.opacity = '1';
       ring.style.opacity = '1';
@@ -99,85 +116,104 @@
     document.addEventListener('mousemove', e => {
       mouseX = e.clientX;
       mouseY = e.clientY;
-      // Dot follows instantly
       dot.style.left = mouseX + 'px';
       dot.style.top = mouseY + 'px';
     });
 
-    // Ring follows with smooth lag
-    function animateRing() {
+    // Ring + trail animation loop
+    function animate() {
       ringX += (mouseX - ringX) * 0.12;
       ringY += (mouseY - ringY) * 0.12;
       ring.style.left = ringX + 'px';
       ring.style.top = ringY + 'px';
-      requestAnimationFrame(animateRing);
-    }
-    animateRing();
 
-    // Hover effects on interactive elements
-    const hoverTargets = document.querySelectorAll('a, button, .svc, .why-card, .rev, .about-val');
-    hoverTargets.forEach(el => {
-      el.addEventListener('mouseenter', () => ring.classList.add('link-hover'));
-      el.addEventListener('mouseleave', () => ring.classList.remove('link-hover'));
+      let prevX = mouseX, prevY = mouseY;
+      for (let i = 0; i < trailParticles.length; i++) {
+        const tp = trailParticles[i];
+        tp.x += (prevX - tp.x) * (0.25 - i * 0.02);
+        tp.y += (prevY - tp.y) * (0.25 - i * 0.02);
+        tp.el.style.left = tp.x + 'px';
+        tp.el.style.top = tp.y + 'px';
+        prevX = tp.x;
+        prevY = tp.y;
+      }
+
+      requestAnimationFrame(animate);
+    }
+    animate();
+
+    // Hover effects
+    document.querySelectorAll('a, button, .svc, .why-card, .rev, .about-val').forEach(el => {
+      el.addEventListener('mouseenter', () => {
+        ring.classList.add('link-hover');
+        dot.classList.add('link-hover');
+      });
+      el.addEventListener('mouseleave', () => {
+        ring.classList.remove('link-hover');
+        dot.classList.remove('link-hover');
+      });
     });
 
-    // Expand on images
     document.querySelectorAll('img, .hero-img-wrap, .contact-map').forEach(el => {
       el.addEventListener('mouseenter', () => ring.classList.add('expand'));
       el.addEventListener('mouseleave', () => ring.classList.remove('expand'));
     });
 
-    // Hide default cursor
-    document.body.style.cursor = 'none';
-    document.querySelectorAll('a, button').forEach(el => {
-      el.style.cursor = 'none';
+    document.querySelectorAll('h1, h2, h3').forEach(el => {
+      el.addEventListener('mouseenter', () => {
+        ring.classList.add('text-hover');
+        dot.classList.add('text-hover');
+      });
+      el.addEventListener('mouseleave', () => {
+        ring.classList.remove('text-hover');
+        dot.classList.remove('text-hover');
+      });
     });
+
+    document.body.style.cursor = 'none';
+    document.querySelectorAll('a, button').forEach(el => el.style.cursor = 'none');
   }
 
-  /* ═══ MAGNETIC BUTTONS ═══ */
+  /* ═══ MAGNETIC BUTTONS (GSAP) ═══ */
   function setupMagnetic() {
     if (window.matchMedia('(pointer:coarse)').matches) return;
+    if (typeof gsap === 'undefined') return;
 
     document.querySelectorAll('.btn, .nav-cta, .fab-wa').forEach(btn => {
       btn.addEventListener('mousemove', e => {
         const rect = btn.getBoundingClientRect();
         const x = e.clientX - rect.left - rect.width / 2;
         const y = e.clientY - rect.top - rect.height / 2;
-        btn.style.transform = `translate(${x * 0.2}px, ${y * 0.2}px)`;
+        gsap.to(btn, { x: x * 0.25, y: y * 0.25, duration: 0.3, ease: 'power2.out' });
       });
       btn.addEventListener('mouseleave', () => {
-        btn.style.transform = '';
-        btn.style.transition = 'transform 0.5s cubic-bezier(.34,1.56,.64,1)';
-        setTimeout(() => { btn.style.transition = ''; }, 500);
+        gsap.to(btn, { x: 0, y: 0, duration: 0.6, ease: 'elastic.out(1, 0.4)' });
       });
     });
   }
 
-  /* ═══ 3D CARD TILT ═══ */
+  /* ═══ 3D CARD TILT (GSAP) ═══ */
   function setup3DTilt() {
     if (window.matchMedia('(pointer:coarse)').matches) return;
+    if (typeof gsap === 'undefined') return;
 
     document.querySelectorAll('.svc, .why-card, .rev').forEach(card => {
-      card.style.transformStyle = 'preserve-3d';
-      card.style.perspective = '800px';
-
       card.addEventListener('mousemove', e => {
         const rect = card.getBoundingClientRect();
         const x = (e.clientX - rect.left) / rect.width - 0.5;
         const y = (e.clientY - rect.top) / rect.height - 0.5;
-        card.style.transform = `
-          perspective(800px)
-          rotateY(${x * 8}deg)
-          rotateX(${-y * 8}deg)
-          translateY(-4px)
-          scale(1.02)
-        `;
+        gsap.to(card, {
+          rotateY: x * 10, rotateX: -y * 10,
+          y: -4, scale: 1.02,
+          duration: 0.3, ease: 'power2.out',
+          transformPerspective: 800
+        });
       });
-
       card.addEventListener('mouseleave', () => {
-        card.style.transform = '';
-        card.style.transition = 'transform 0.6s cubic-bezier(.22,1,.36,1)';
-        setTimeout(() => { card.style.transition = ''; }, 600);
+        gsap.to(card, {
+          rotateY: 0, rotateX: 0, y: 0, scale: 1,
+          duration: 0.6, ease: 'elastic.out(1, 0.5)'
+        });
       });
     });
   }
@@ -187,158 +223,104 @@
     const container = document.querySelector('.hero-particles');
     if (!container) return;
 
-    const colors = ['rgba(43,168,200,0.3)', 'rgba(62,187,160,0.25)', 'rgba(232,185,35,0.2)'];
+    const colors = [
+      'rgba(43,168,200,0.35)', 'rgba(62,187,160,0.3)',
+      'rgba(232,185,35,0.25)', 'rgba(91,196,222,0.2)'
+    ];
 
-    for (let i = 0; i < 12; i++) {
+    for (let i = 0; i < 15; i++) {
       const p = document.createElement('div');
       p.className = 'particle';
-      const size = Math.random() * 6 + 3;
+      const size = Math.random() * 7 + 2;
       p.style.cssText = `
         width:${size}px;height:${size}px;
         left:${Math.random() * 100}%;
         background:${colors[i % colors.length]};
-        animation-duration:${Math.random() * 12 + 10}s;
-        animation-delay:${Math.random() * 8}s;
+        animation-duration:${Math.random() * 14 + 8}s;
+        animation-delay:${Math.random() * 6}s;
       `;
       container.appendChild(p);
     }
   }
 
-  /* ═══ HERO ANIMATIONS ═══ */
+  /* ═══ HERO ANIMATIONS (GSAP — no ScrollTrigger needed) ═══ */
   function setupHero() {
-    const tl = gsap.timeline({
-      defaults: { ease: 'power3.out' },
-      delay: 2.2 // After preloader
-    });
+    if (typeof gsap === 'undefined') return;
+
+    const tl = gsap.timeline({ defaults: { ease: 'power3.out' } });
 
     tl.from('.hero-badge', { opacity: 0, y: 25, duration: 0.7 }, 0)
-      .from('h1', {
-        opacity: 0, y: 50, duration: 1,
-        ease: 'power4.out'
-      }, 0.1)
-      .from('.hero-p', { opacity: 0, y: 35, duration: 0.8 }, 0.35)
-      .from('.hero-btns', { opacity: 0, y: 30, duration: 0.7 }, 0.5)
-      .from('.hero-trust', { opacity: 0, y: 20, duration: 0.6 }, 0.65)
-      .from('.hero-img-wrap', {
-        opacity: 0, scale: 0.92, y: 30,
-        duration: 1.1, ease: 'power4.out'
-      }, 0.2)
-      .from('.hero-float-badge', {
-        opacity: 0, scale: 0.8, x: -20,
-        duration: 0.7, ease: 'back.out(1.7)'
-      }, 0.8);
+      .from('h1', { opacity: 0, y: 50, duration: 1, ease: 'power4.out' }, 0.1)
+      .from('.hero-p', { opacity: 0, y: 35, duration: 0.8 }, 0.3)
+      .from('.hero-btns', { opacity: 0, y: 30, duration: 0.7 }, 0.45)
+      .from('.hero-trust', { opacity: 0, y: 20, duration: 0.6 }, 0.6)
+      .from('.hero-img-wrap', { opacity: 0, scale: 0.92, y: 30, duration: 1.1, ease: 'power4.out' }, 0.15)
+      .from('.hero-float-badge', { opacity: 0, scale: 0.8, x: -20, duration: 0.7, ease: 'back.out(1.7)' }, 0.75);
   }
 
-  /* ═══ SCROLL REVEALS ═══ */
-  function setupReveals() {
-    // Section intros with split feel
-    gsap.utils.toArray('.sec-intro').forEach(el => {
-      const tl = gsap.timeline({
-        scrollTrigger: { trigger: el, start: 'top 85%' }
+  /* ═══════════════════════════════════════════════════════════
+     SCROLL REVEALS — IntersectionObserver (NO GSAP ScrollTrigger)
+     Reliable, works with all scroll methods, no position bugs
+     ═══════════════════════════════════════════════════════════ */
+  function setupScrollReveals() {
+    // All elements that should reveal on scroll get class "reveal"
+    // They start with CSS opacity:0 + translateY via .reveal
+    // When observed, they get .revealed → CSS transition shows them
+
+    const revealTargets = [
+      // Staggered groups: { selector, stagger (ms between items) }
+      { selector: '.svc', stagger: 80 },
+      { selector: '.why-card', stagger: 100 },
+      { selector: '.rev', stagger: 120 },
+      { selector: '.ci', stagger: 80 },
+      { selector: '.about-val', stagger: 60 },
+      // Single elements
+      { selector: '.sec-intro' },
+      { selector: '.about-img-main' },
+      { selector: '.about-img-small' },
+      { selector: '.about-float' },
+      { selector: '.about-content' },
+      { selector: '.rev-google' },
+      { selector: '.cta-inner' },
+      { selector: '.contact-map' },
+      { selector: '.marquee-section' },
+      { selector: '.footer-top' },
+    ];
+
+    // Add .reveal class to all targets
+    revealTargets.forEach(({ selector }) => {
+      document.querySelectorAll(selector).forEach(el => {
+        el.classList.add('reveal');
       });
-      const label = el.querySelector('.label');
-      const h2 = el.querySelector('h2');
-      const p = el.querySelector('p');
-      if (label) tl.from(label, { opacity: 0, y: 15, duration: 0.5 }, 0);
-      if (h2) tl.from(h2, { opacity: 0, y: 30, duration: 0.7 }, 0.1);
-      if (p) tl.from(p, { opacity: 0, y: 20, duration: 0.6 }, 0.25);
     });
 
-    // Service cards — staggered cascade
-    const svcCards = gsap.utils.toArray('.svc');
-    if (svcCards.length) {
-      gsap.from(svcCards, {
-        y: 50, opacity: 0, duration: 0.7,
-        stagger: { each: 0.1, from: 'start' },
-        ease: 'power3.out',
-        scrollTrigger: { trigger: '.svc-grid', start: 'top 85%' }
+    // Create observer
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          const el = entry.target;
+          // Check if this element is part of a stagger group
+          const delay = parseInt(el.dataset.revealDelay || '0');
+          setTimeout(() => {
+            el.classList.add('revealed');
+          }, delay);
+          observer.unobserve(el);
+        }
       });
-    }
-
-    // Why cards — staggered from center
-    const whyCards = gsap.utils.toArray('.why-card');
-    if (whyCards.length) {
-      gsap.from(whyCards, {
-        y: 45, opacity: 0, duration: 0.7,
-        stagger: { each: 0.12, from: 'center' },
-        ease: 'power3.out',
-        scrollTrigger: { trigger: '.why-grid', start: 'top 85%' }
-      });
-    }
-
-    // About section — cinematic reveal
-    const aboutGrid = document.querySelector('.about-grid');
-    if (aboutGrid) {
-      const atl = gsap.timeline({
-        scrollTrigger: { trigger: '.about-grid', start: 'top 75%' }
-      });
-      atl.from('.about-img-main', { scale: 0.88, opacity: 0, duration: 1, ease: 'power3.out' })
-         .from('.about-img-small', { x: 50, y: 40, opacity: 0, duration: 0.8, ease: 'power3.out' }, 0.15)
-         .from('.about-float', { scale: 0.7, opacity: 0, duration: 0.7, ease: 'back.out(2)' }, 0.35)
-         .from('.about-content .label', { opacity: 0, x: -20, duration: 0.5 }, 0.2)
-         .from('.about-content h2', { opacity: 0, y: 30, duration: 0.7 }, 0.3)
-         .from('.about-content p', { opacity: 0, y: 20, duration: 0.6, stagger: 0.1 }, 0.4);
-
-      // About values
-      gsap.from('.about-val', {
-        y: 25, opacity: 0, duration: 0.5,
-        stagger: 0.08, ease: 'power3.out',
-        scrollTrigger: { trigger: '.about-values', start: 'top 90%' }
-      });
-    }
-
-    // Reviews — staggered slide up
-    const revCards = gsap.utils.toArray('.rev');
-    if (revCards.length) {
-      gsap.from(revCards, {
-        y: 50, opacity: 0, duration: 0.8,
-        stagger: { each: 0.15 },
-        ease: 'power3.out',
-        scrollTrigger: { trigger: '.rev-grid', start: 'top 85%' }
-      });
-    }
-
-    // Google badge
-    gsap.from('.rev-google', {
-      y: 20, opacity: 0, duration: 0.6,
-      ease: 'power3.out',
-      scrollTrigger: { trigger: '.rev-google', start: 'top 92%' }
+    }, {
+      threshold: 0.08,
+      rootMargin: '0px 0px -40px 0px'
     });
 
-    // CTA section
-    gsap.from('.cta-inner', {
-      y: 50, opacity: 0, scale: 0.97, duration: 1,
-      ease: 'power3.out',
-      scrollTrigger: { trigger: '.sec-cta', start: 'top 80%' }
-    });
-
-    // Contact cards — staggered slide in
-    const ciCards = gsap.utils.toArray('.ci');
-    if (ciCards.length) {
-      gsap.from(ciCards, {
-        x: -30, opacity: 0, duration: 0.6,
-        stagger: 0.1, ease: 'power3.out',
-        scrollTrigger: { trigger: '.contact-list', start: 'top 88%' }
+    // Observe all elements, set stagger delays for groups
+    revealTargets.forEach(({ selector, stagger }) => {
+      const els = document.querySelectorAll(selector);
+      els.forEach((el, i) => {
+        if (stagger) {
+          el.dataset.revealDelay = String(i * stagger);
+        }
+        observer.observe(el);
       });
-    }
-
-    // Map
-    gsap.from('.contact-map', {
-      scale: 0.94, opacity: 0, duration: 0.9,
-      ease: 'power3.out',
-      scrollTrigger: { trigger: '.contact-map', start: 'top 85%' }
-    });
-
-    // Marquee
-    gsap.from('.marquee-section', {
-      opacity: 0, duration: 0.8,
-      scrollTrigger: { trigger: '.marquee-section', start: 'top 95%' }
-    });
-
-    // Footer
-    gsap.from('.footer-top', {
-      y: 25, opacity: 0, duration: 0.6,
-      scrollTrigger: { trigger: 'footer[role="contentinfo"]', start: 'top 92%' }
     });
   }
 
